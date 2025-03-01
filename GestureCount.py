@@ -1,60 +1,48 @@
 import cv2
-import numpy as np
+import mediapipe as mp
 
-def count_fingers(thresh_img, frame):
-    contours, _ = cv2.findContours(thresh_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+mp_hands = mp.solutions.hands
+mp_drawing = mp.solutions.drawing_utils
 
-    if contours:
+def count_fingers(hand_landmarks):
+    fingers = 0
 
-        max_contour = max(contours, key=cv2.contourArea)
+    if hand_landmarks[17].x < hand_landmarks[5].x:  
+     if hand_landmarks[4].x > hand_landmarks[3].x:  
+        fingers += 1
+    else:  
+      if hand_landmarks[4].x < hand_landmarks[3].x:
+        fingers += 1
 
-        hull = cv2.convexHull(max_contour, returnPoints=False)
-
-        defects = cv2.convexityDefects(max_contour, hull)
-
-        count = 0
-        if defects is not None:
-            for i in range(defects.shape[0]):
-                s, e, f, d = defects[i, 0]
-                start = tuple(max_contour[s][0])
-                end = tuple(max_contour[e][0])
-                far = tuple(max_contour[f][0])
-
-                a = np.linalg.norm(np.array(start) - np.array(end))
-                b = np.linalg.norm(np.array(start) - np.array(far))
-                c = np.linalg.norm(np.array(end) - np.array(far))
-
-                angle = np.degrees(np.arccos((b**2 + c**2 - a**2) / (2 * b * c)))
-
-                if angle < 90:
-                    count += 1
-                    cv2.circle(frame, far, 5, (0, 255, 0), -1)  
-
-        cv2.putText(frame, f'Fingers: {count+1}', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 
-                    1, (255, 0, 0), 2)
+    for tip_id in [8, 12, 16, 20]:  
+        if hand_landmarks[tip_id].y < hand_landmarks[tip_id - 2].y:
+            fingers += 1
+    return fingers
 
 cap = cv2.VideoCapture(0)
 
-while cap.isOpened():
-    ret, frame = cap.read()
-    if not ret:
-        break
+with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) as hands:
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = hands.process(rgb_frame)
 
-    lower_skin = np.array([0, 20, 70], dtype=np.uint8)
-    upper_skin = np.array([20, 255, 255], dtype=np.uint8)
-    mask = cv2.inRange(hsv, lower_skin, upper_skin)
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                fingers_count = count_fingers(hand_landmarks.landmark)
+                
+                mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-    mask = cv2.GaussianBlur(mask, (5, 5), 100)
-    
-    count_fingers(mask, frame)
+                cv2.putText(frame, f'Fingers: {fingers_count}', (50, 50), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
-    cv2.imshow("Hand Detection", frame)
-    cv2.imshow("Mask", mask)
+        cv2.imshow("Hand Tracking", frame)
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        if cv2.waitKey(10) & 0xFF == ord('q'):
+            break
 
 cap.release()
 cv2.destroyAllWindows()
