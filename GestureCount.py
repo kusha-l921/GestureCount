@@ -8,20 +8,21 @@ def count_fingers(hand_landmarks):
     fingers = 0
 
     if hand_landmarks[17].x < hand_landmarks[5].x:  
-     if hand_landmarks[4].x > hand_landmarks[3].x:  
-        fingers += 1
+        if hand_landmarks[4].x > hand_landmarks[3].x:  
+            fingers += 1
     else:  
-      if hand_landmarks[4].x < hand_landmarks[3].x:
-        fingers += 1
+        if hand_landmarks[4].x < hand_landmarks[3].x:
+            fingers += 1
 
     for tip_id in [8, 12, 16, 20]:  
         if hand_landmarks[tip_id].y < hand_landmarks[tip_id - 2].y:
             fingers += 1
+
     return fingers
 
 cap = cv2.VideoCapture(0)
 
-with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) as hands:
+with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5, max_num_hands=10) as hands:
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
@@ -36,7 +37,9 @@ with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) a
                 
                 mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-                cv2.putText(frame, f'Fingers: {fingers_count}', (50, 50), 
+                x, y = int(hand_landmarks.landmark[0].x * frame.shape[1]), int(hand_landmarks.landmark[0].y * frame.shape[0])
+                
+                cv2.putText(frame, f'Fingers: {fingers_count}', (x - 30, y - 30), 
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
         cv2.imshow("Hand Tracking", frame)
